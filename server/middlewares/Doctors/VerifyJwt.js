@@ -10,8 +10,13 @@ const verifyDocJWT = (req, res, next) => {
     return res.status(401).json("No Authorization Token");
   }
   jwt.verify(token, process.env.JWT_SECRET_KEY, (err, decoded) => {
-    if (err) return res.status(403).json({ error: "Wrong Auth Token" });
-
+    if (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({ message: "Token has expired." });
+      } else {
+        return res.status(403).json({ error: "Wrong Auth Token" });
+      }
+    }
     req.user = decoded;
     next();
   });

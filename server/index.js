@@ -6,6 +6,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const path = require("path");
+const cron = require("node-cron")
 
 //Doc routes
 const DocRegisterRoute = require("./routes/Docs/Auth/register");
@@ -23,6 +24,8 @@ const NotificationRoutes = require("./routes/Notifications/Notifications");
 //chat routes
 const conversationRoutes = require("./routes/Chat/conversations");
 const messageRoute = require("./routes/Chat/messages");
+const Sessions = require("./models/Sessions");
+const { handleRefreshToken, logoutcontroller } = require("./controllers/Docs/Auth/logincontroller");
 dotenv.config();
 
 app.use(cors());
@@ -45,12 +48,35 @@ app.use(helmet());
 app.use(morgan("common"));
 app.use(express.urlencoded({ extended: true }));
 
+
+// Remove the access tokens daily cron job
+
+cron.schedule('0 0 * * *', async () => {
+  try {
+    await Sessions.updateMany({}, {
+      $pull: {
+        accessTokens: {
+          expiresAt: { $lt: new Date() } // Remove tokens where expiresAt is less than the current date
+        }
+      }
+    })
+    console.log("Expired tokens cleanup completed")
+  } catch (error) {
+    console.error("Error during expired tokens cleanup", error)
+  }
+})
+
+// For Refresh jwt token
+
+app.post("/refreshToken", handleRefreshToken)
+
 // For Docs
 
 app.use("/doc", DocRegisterRoute);
 app.use("/doc", DocLogInRoute);
 app.use("/doc", DocUpdateInfo);
 app.use("/doc", SendInvite);
+
 
 // For Notifications
 
@@ -67,6 +93,14 @@ app.use("/patient", PatientRegister);
 app.use("/patient", PatientLogin);
 app.use("/patient", Patientinfo);
 app.use("/review", ReviewRoutes);
+
+
+// For Logoutting the user
+
+app.post("/logout", logoutcontroller)
+
 app.listen(URL, () => {
   console.log("Server is running");
 });
+
+
